@@ -78,8 +78,7 @@ async fn cat_endpoint(
     pool: web::Data<DbPool>,
     cat_id: web::Path<CatEndpointPath>,
 ) -> Result<HttpResponse, Error> {
-    cat_id.validate()
-        .map_err(error::ErrorBadRequest)?;
+    cat_id.validate().map_err(error::ErrorBadRequest)?;
     let mut connection = pool.get().expect("Can't get db connection from pool");
     let cat_data = web::block(move || cats.filter(id.eq(cat_id.id)).first::<Cat>(&mut connection))
         .await?
