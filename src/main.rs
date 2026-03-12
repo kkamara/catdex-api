@@ -5,6 +5,7 @@ use actix_web::{App, Error, HttpResponse, HttpServer, Responder, Result, error, 
 use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
 
@@ -12,6 +13,11 @@ mod models;
 mod schema;
 
 type DbPool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
+
+#[derive(Deserialize)]
+struct CatEndpointPath {
+    id: u64,
+}
 
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world")
@@ -56,6 +62,17 @@ async fn add_cat_endpoint(
     Ok(HttpResponse::Created().finish())
 }
 
+async fn cat_endpoint(
+    pool: web::Data<DbPool>,
+    cat_id: web::Path<CatEndpointPath>,
+) -> Result<HttpResponse, Error> {
+    let mut connection = pool.get().expect("Can't get db connection from pool");
+    let cat_data = web::block(move || cats.filter(id.eq(cat_id.id)).first::<Cat>(&mut connection))
+        .await?
+        .map_err(error::ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().json(cat_data))
+}
+
 async fn cats_endpoint(pool: web::Data<DbPool>) -> Result<HttpResponse, Error> {
     let mut connection = pool.get().expect("Can't get db connection from pool");
 
@@ -72,6 +89,7 @@ fn api_config(cfg: &mut web::ServiceConfig) {
         web::scope("/api")
             .route("/cats", web::get().to(cats_endpoint))
             .route("/add_cat", web::post().to(add_cat_endpoint))
+            .route("/cat/{id}", web::get().to(cat_endpoint)),
     );
 }
 
