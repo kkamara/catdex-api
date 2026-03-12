@@ -1,5 +1,3 @@
-use self::models::*;
-use self::schema::cats::dsl::*;
 use actix_files::{Files, NamedFile};
 use actix_web::{App, Error, HttpResponse, HttpServer, Responder, Result, error, web};
 use diesel::mysql::MysqlConnection;
@@ -12,8 +10,13 @@ use std::env;
 use std::path::Path;
 use validator::Validate;
 
+mod errors;
 mod models;
 mod schema;
+
+use self::errors::UserError;
+use self::models::*;
+use self::schema::cats::dsl::*;
 
 type DbPool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
 
@@ -77,12 +80,17 @@ async fn add_cat_endpoint(
 async fn cat_endpoint(
     pool: web::Data<DbPool>,
     cat_id: web::Path<CatEndpointPath>,
-) -> Result<HttpResponse, Error> {
-    cat_id.validate().map_err(error::ErrorBadRequest)?;
-    let mut connection = pool.get().expect("Can't get db connection from pool");
-    let cat_data = web::block(move || cats.filter(id.eq(cat_id.id)).first::<Cat>(&mut connection))
-        .await?
-        .map_err(error::ErrorInternalServerError)?;
+) -> Result<HttpResponse, UserError> {
+    cat_id.validate().map_err(|_| UserError::ValidationError)?;
+    let mut connection = pool.get().map_err(|_| UserError::DBPoolGetError)?;
+    let query_id = cat_id.id.clone();
+    let cat_data = web::block(move || cats.filter(id.eq(query_id)).first::<Cat>(&mut connection))
+        .await
+        .map_err(|_| UserError::UnexpectedError)?
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => UserError::NotFoundError,
+            _ => UserError::UnexpectedError,
+        })?;
     Ok(HttpResponse::Ok().json(cat_data))
 }
 

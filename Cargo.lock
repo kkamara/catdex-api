@@ -351,6 +351,7 @@ dependencies = [
  "actix-files",
  "actix-web",
  "awmp",
+ "derive_more 2.1.1",
  "diesel",
  "handlebars",
  "path-slash",
