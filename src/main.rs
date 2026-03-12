@@ -1,8 +1,10 @@
 use actix_files::{Files, NamedFile};
-use actix_web::{App, Error, HttpResponse, HttpServer, Responder, Result, error, web};
+use actix_web::middleware::Logger;
+use actix_web::{App, HttpResponse, HttpServer, Result, web};
 use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
+use log::{error, info, warn};
 use path_slash::PathExt;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -26,10 +28,6 @@ struct CatEndpointPath {
     id: u64,
 }
 
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world")
-}
-
 async fn index() -> Result<NamedFile> {
     Ok(NamedFile::open("./static/index.html")?)
 }
@@ -45,13 +43,16 @@ fn setup_database() -> DbPool {
 async fn add_cat_endpoint(
     pool: web::Data<DbPool>,
     mut parts: awmp::Parts,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, UserError> {
     let file_path = parts
         .files
         .take("image")
         .pop()
         .and_then(|f| f.persist_in("./image").ok())
-        .unwrap_or_default();
+        .ok_or_else(|| {
+            error!("Error in getting image path");
+            UserError::ValidationError
+        })?;
     let formatted_file_path = Path::new(&file_path).to_string_lossy().into_owned();
     let normalized_image_path = Path::new(&formatted_file_path)
         .to_slash()
@@ -61,9 +62,18 @@ async fn add_cat_endpoint(
         .unwrap_or(&normalized_image_path)
         .to_string();
     let text_fields: HashMap<_, _> = parts.texts.as_pairs().into_iter().collect();
-    let mut connection = pool.get().expect("Can't get db connection from pool");
+    let mut connection = pool.get().map_err(|_| {
+        error!("Failed to get DB connection from pool");
+        UserError::DBPoolGetError
+    })?;
     let new_cat = NewCat {
-        name: text_fields.get("name").unwrap().to_string(),
+        name: text_fields
+            .get("name")
+            .ok_or_else(|| {
+                error!("Error in getting name field");
+                UserError::ValidationError
+            })?
+            .to_string(),
         image_path: normalized_image_path,
     };
     web::block(move || {
@@ -72,8 +82,14 @@ async fn add_cat_endpoint(
             .execute(&mut connection)
     })
     .await
-    .map_err(error::ErrorInternalServerError)?
-    .map_err(error::ErrorInternalServerError)?;
+    .map_err(|_| {
+        error!("Blocking Thread Pool Error");
+        UserError::UnexpectedError
+    })?
+    .map_err(|_| {
+        error!("Failed to get DB connection from pool");
+        UserError::DBPoolGetError
+    })?;
     Ok(HttpResponse::Created().finish())
 }
 
@@ -81,26 +97,49 @@ async fn cat_endpoint(
     pool: web::Data<DbPool>,
     cat_id: web::Path<CatEndpointPath>,
 ) -> Result<HttpResponse, UserError> {
-    cat_id.validate().map_err(|_| UserError::ValidationError)?;
-    let mut connection = pool.get().map_err(|_| UserError::DBPoolGetError)?;
+    cat_id.validate().map_err(|_| {
+        warn!("Parameter validation failed");
+        UserError::ValidationError
+    })?;
+    let mut connection = pool.get().map_err(|_| {
+        error!("Failed to get DB connection from pool");
+        UserError::DBPoolGetError
+    })?;
     let query_id = cat_id.id.clone();
     let cat_data = web::block(move || cats.filter(id.eq(query_id)).first::<Cat>(&mut connection))
         .await
-        .map_err(|_| UserError::UnexpectedError)?
+        .map_err(|_| {
+            error!("Blocking Thread Pool Error");
+            UserError::UnexpectedError
+        })?
         .map_err(|e| match e {
-            diesel::result::Error::NotFound => UserError::NotFoundError,
-            _ => UserError::UnexpectedError,
+            diesel::result::Error::NotFound => {
+                error!("Cat ID: {} not found in DB", &cat_id.id);
+                UserError::NotFoundError
+            }
+            _ => {
+                error!("Unexpected error");
+                UserError::UnexpectedError
+            }
         })?;
     Ok(HttpResponse::Ok().json(cat_data))
 }
 
-async fn cats_endpoint(pool: web::Data<DbPool>) -> Result<HttpResponse, Error> {
-    let mut connection = pool.get().expect("Can't get db connection from pool");
-
+async fn cats_endpoint(pool: web::Data<DbPool>) -> Result<HttpResponse, UserError> {
+    let mut connection = pool.get().map_err(|_| {
+        error!("Failed to get DB connection from pool");
+        UserError::DBPoolGetError
+    })?;
     let cats_data = web::block(move || cats.limit(100).load::<Cat>(&mut connection))
         .await
-        .map_err(error::ErrorInternalServerError)?
-        .map_err(error::ErrorInternalServerError)?;
+        .map_err(|_| {
+            error!("Blocking Thread Pool Error");
+            UserError::UnexpectedError
+        })?
+        .map_err(|_| {
+            error!("Failed to get DB connection from pool");
+            UserError::DBPoolGetError
+        })?;
 
     Ok(HttpResponse::Ok().json(cats_data))
 }
@@ -109,9 +148,7 @@ fn api_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api")
             .app_data(
-                web::PathConfig::default().error_handler(
-                    |_, _| UserError::ValidationError.into()
-                ),
+                web::PathConfig::default().error_handler(|_, _| UserError::ValidationError.into()),
             )
             .route("/cats", web::get().to(cats_endpoint))
             .route("/add_cat", web::post().to(add_cat_endpoint))
@@ -121,18 +158,19 @@ fn api_config(cfg: &mut web::ServiceConfig) {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init();
     let pool = setup_database();
 
-    println!("Listening on port 8080");
+    info!("Listening on port 8080");
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(web::Data::new(pool.clone()))
             .app_data(awmp::PartsConfig::default().with_temp_dir("./tmp"))
             .service(Files::new("/static", "static").show_files_listing())
             .service(Files::new("/image", "image").show_files_listing())
             .configure(api_config)
             .route("/", web::get().to(index))
-            .route("/hello", web::get().to(hello))
     })
     .bind("127.0.0.1:8080")?
     .run()

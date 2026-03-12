@@ -32,7 +32,12 @@ values
 
 ```bash
 # Serves a web app at http://localhost:8080
-cargo run
+# With debug logs enabled.
+RUST_LOG=debug cargo run
+RUST_LOG=error cargo run
+RUST_LOG=warn cargo run
+RUST_LOG=info cargo run
+RUST_LOG=trace cargo run
 ```
 
 ## Creating Database Cats via API

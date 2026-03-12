@@ -9,7 +9,9 @@ actix-web = "4.13.0"
 awmp = "0.8.1"
 derive_more = "2.1.1"
 diesel = { version = "2.3.6", features = ["mysql", "r2d2"] }
+env_logger = "0.11.9"
 handlebars = { version = "6.4.0", features = ["dir_source"] }
+log = "0.4.29"
 path-slash = "0.2.1"
 r2d2 = "0.8.10"
 serde = { version = "1.0.228", features = ["derive"] }
