@@ -71,7 +71,7 @@ fn api_config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api")
             .route("/cats", web::get().to(cats_endpoint))
-            .route("/add_cat", web::get().to(add_cat_endpoint)),
+            .route("/add_cat", web::post().to(add_cat_endpoint))
     );
 }
 
