@@ -9,10 +9,11 @@ The book configures settings for a PostgreSQL database. I went with a MYSQL data
 ```bash
 # Install Diesel CLI
 cargo install diesel\_cli --no-default-features --features mysql
+# Create your `catdex` database
+# and run your migrations.
+diesel setup
 # Set MYSQL Database URL
 export DATABASE_URL=mysql://user:password@localhost/catdex
-# Setup database
-diesel migration run
 ```
 
 ## MYSQL Scripts
@@ -36,11 +37,12 @@ cargo run
 ## Creating Database Cats via API
 
 ```bash
-cd image
-curl -F "name=Persian2" \ -F "image=@persian.jpg" \ localhost:8080/api/add_cat
+curl -F "name=Persian2" -F "image=@image/persian.jpg" http://localhost:8080/api/add_cat
 ```
 
 ## Useful Database Commands
+
+• diesel migration run
 
 • diesel migration revert: runs the down.sql of the most
 recent migration
