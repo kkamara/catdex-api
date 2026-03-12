@@ -2,6 +2,8 @@
 
 This repository follows chapter 5 of Shing Lyu's book Practical Rust Projects Second Edition.
 
+The book configures settings for a PostgreSQL database. I went with a MYSQL database instead. This means that some configuration code and SQL snippets differ from the book.
+
 ## Installation
 
 ```bash
