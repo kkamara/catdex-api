@@ -5,9 +5,11 @@ use actix_web::{App, Error, HttpResponse, HttpServer, Responder, Result, error, 
 use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
+use path_slash::PathExt;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
+use std::path::Path;
 
 mod models;
 mod schema;
@@ -45,11 +47,19 @@ async fn add_cat_endpoint(
         .pop()
         .and_then(|f| f.persist_in("./image").ok())
         .unwrap_or_default();
+    let formatted_file_path = Path::new(&file_path).to_string_lossy().into_owned();
+    let normalized_image_path = Path::new(&formatted_file_path)
+        .to_slash()
+        .unwrap_or_default();
+    let normalized_image_path = normalized_image_path
+        .strip_prefix(".")
+        .unwrap_or(&normalized_image_path)
+        .to_string();
     let text_fields: HashMap<_, _> = parts.texts.as_pairs().into_iter().collect();
     let mut connection = pool.get().expect("Can't get db connection from pool");
     let new_cat = NewCat {
         name: text_fields.get("name").unwrap().to_string(),
-        image_path: file_path.to_string_lossy().to_string(),
+        image_path: normalized_image_path,
     };
     web::block(move || {
         diesel::insert_into(cats)

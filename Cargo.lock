@@ -353,6 +353,7 @@ dependencies = [
  "awmp",
  "diesel",
  "handlebars",
+ "path-slash",
  "r2d2",
  "serde",
  "serde_json",
@@ -1233,6 +1234,12 @@ dependencies = [
  "smallvec",
  "windows-link",
 ]
+
+[[package]]
+name = "path-slash"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e91099d4268b0e11973f036e885d652fb0b21fedcf69738c627f94db6a44f42"
 
 [[package]]
 name = "percent-encoding"
