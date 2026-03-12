@@ -1,0 +1,5 @@
+CREATE TABLE cats (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(50) NOT NULL,
+  image_path VARCHAR(255) NOT NULL
+);
