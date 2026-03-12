@@ -35,6 +35,7 @@ cargo run
 
 • diesel migration revert: runs the down.sql of the most
 recent migration
+
 • diesel migration redo: runs the down.sql followed by up.
 sql of the most recent migration. after running it your database
 schema should be unchanged (but you might lose some data if
