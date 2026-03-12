@@ -41,6 +41,14 @@ cargo run
 curl -F "name=Persian2" -F "image=@image/persian.jpg" http://localhost:8080/api/add_cat
 ```
 
+## Validation
+
+```bash
+# Range error
+curl -v localhost:8080/api/cat/9999
+curl -v localhost:8080/api/cat/-1
+```
+
 ## Useful Database Commands
 
 • diesel migration run
