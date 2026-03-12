@@ -48,3 +48,9 @@ sql of the most recent migration. after running it your database
 schema should be unchanged (but you might lose some data if
 down.sql drops a table!). this is useful for verifying that your
 down.sql works as intended.
+
+## Testing
+
+```bash
+cargo test
+```
