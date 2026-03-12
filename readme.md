@@ -33,7 +33,7 @@ values
 cargo run
 ```
 
-## Creating Database Cats
+## Creating Database Cats via API
 
 ```bash
 cd image
