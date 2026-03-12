@@ -31,6 +31,13 @@ values
 cargo run
 ```
 
+## Creating Database Cats
+
+```bash
+cd image
+curl -F "name=Persian2" \ -F "image=@persian.jpg" \ localhost:8080/api/add_cat
+```
+
 ## Useful Database Commands
 
 • diesel migration revert: runs the down.sql of the most

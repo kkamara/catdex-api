@@ -5,6 +5,7 @@ use actix_web::{App, Error, HttpResponse, HttpServer, Responder, Result, error, 
 use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
+use std::collections::HashMap;
 use std::env;
 
 mod models;
@@ -20,19 +21,41 @@ async fn index() -> Result<NamedFile> {
     Ok(NamedFile::open("./static/index.html")?)
 }
 
-async fn cats_endpoint(pool: web::Data<DbPool>) -> Result<HttpResponse, Error> {
-    let mut connection = pool
-        .get()
-        .expect("Can't get db connection from pool");
+async fn add_cat_endpoint(
+    pool: web::Data<DbPool>,
+    mut parts: awmp::Parts,
+) -> Result<HttpResponse, Error> {
+    let file_path = parts
+        .files
+        .take("image")
+        .pop()
+        .and_then(|f| f.persist_in("./image").ok())
+        .unwrap_or_default();
+    let text_fields: HashMap<_, _> = parts.texts.as_pairs().into_iter().collect();
+    let mut connection = pool.get().expect("Can't get db connection from pool");
+    let new_cat = NewCat {
+        name: text_fields.get("name").unwrap().to_string(),
+        image_path: file_path.to_string_lossy().to_string(),
+    };
+    web::block(move || {
+        diesel::insert_into(cats)
+            .values(&new_cat)
+            .execute(&mut connection)
+    })
+    .await
+    .map_err(error::ErrorInternalServerError)?
+    .map_err(error::ErrorInternalServerError)?;
+    Ok(HttpResponse::Created().finish())
+}
 
-    let cats_data = web::block(
-        move || cats.limit(100)
-            .load::<Cat>(&mut connection)
-    )
+async fn cats_endpoint(pool: web::Data<DbPool>) -> Result<HttpResponse, Error> {
+    let mut connection = pool.get().expect("Can't get db connection from pool");
+
+    let cats_data = web::block(move || cats.limit(100).load::<Cat>(&mut connection))
         .await
         .map_err(error::ErrorInternalServerError)?
         .map_err(error::ErrorInternalServerError)?;
-    
+
     Ok(HttpResponse::Ok().json(cats_data))
 }
 
@@ -49,13 +72,18 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone()))
+            .app_data(awmp::PartsConfig::default().with_temp_dir("./tmp"))
             .service(Files::new("/static", "static").show_files_listing())
             .service(Files::new("/image", "image").show_files_listing())
-            .service(web::scope("/api").route("/cats", web::get().to(cats_endpoint)))
+            .service(
+                web::scope("/api")
+                    .route("/cats", web::get().to(cats_endpoint))
+                    .route("/add_cat", web::post().to(add_cat_endpoint)),
+            )
             .route("/", web::get().to(index))
             .route("/hello", web::get().to(hello))
     })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
+        .bind("127.0.0.1:8080")?
+        .run()
+        .await
 }
