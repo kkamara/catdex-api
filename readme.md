@@ -8,6 +8,7 @@ The book configures settings for a PostgreSQL database. I went with a MYSQL data
 
 ```bash
 # Set MYSQL Database URL
+# `catdex` is the name of the database, you can change this.
 export DATABASE_URL=mysql://user:password@localhost/catdex
 # Install Diesel CLI
 cargo install diesel\_cli --no-default-features --features mysql
