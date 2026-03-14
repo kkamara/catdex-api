@@ -26,12 +26,17 @@
             const catTitle = document.createElement("h3")
             const catLink = document.createElement("a")
             catLink.innerText = cat.name
-            catLink.href = `/static/cat.html?id=${cat.id}`
+            const link = `/static/cat.html?id=${cat.id}`
+            catLink.href = link
+            const catImageLink = document.createElement("a")
+            catImageLink.href = link
+            catImageLink.classList.add("cat-image-link")
             const catImage = document.createElement("img")
             catImage.src = cat.image_path
+            catImageLink.appendChild(catImage)
             catTitle.appendChild(catLink)
             catElement.appendChild(catTitle)
-            catElement.appendChild(catImage)
+            catElement.appendChild(catImageLink)
             document.getElementById("cats")
               .appendChild(catElement)
           }

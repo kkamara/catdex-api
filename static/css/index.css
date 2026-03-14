@@ -11,6 +11,6 @@
   text-align: center;
 }
 
-.cat > img {
+.cat > .cat-image-link > img {
   width: 190px;
 }
